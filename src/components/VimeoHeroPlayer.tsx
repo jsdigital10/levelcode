@@ -1,81 +1,112 @@
 import React, { useEffect, useRef, useState } from 'react';
+import Player from '@vimeo/player';
+import { Volume2 } from 'lucide-react';
 
 const VIMEO_VIDEO_ID = '1233741589';
 
 export const VimeoHeroPlayer: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const playerRef = useRef<Player | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<string>('16 / 9');
+  const [browserForcedMute, setBrowserForcedMute] = useState(false);
 
-  const sendVimeoCommand = (method: string, value?: unknown) => {
-    const iframe = iframeRef.current;
-    if (!iframe || !iframe.contentWindow) return;
-    const message = value !== undefined ? { method, value } : { method };
-    iframe.contentWindow.postMessage(JSON.stringify(message), '*');
-  };
-
-  const forcePlayWithSound = () => {
-    sendVimeoCommand('setMuted', false);
-    sendVimeoCommand('setVolume', 1);
-    sendVimeoCommand('play');
-  };
-
-  useEffect(() => {
-    // Query Vimeo oEmbed API to respect exact native aspect ratio of video 1233741589
-    let active = true;
-    fetch(`https://vimeo.com/api/oembed.json?url=https://vimeo.com/${VIMEO_VIDEO_ID}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (active && data?.width && data?.height) {
-          setAspectRatio(`${data.width} / ${data.height}`);
+  const activateAudioAndPlay = async (restartIfBeginning = false) => {
+    const player = playerRef.current;
+    if (!player) return;
+    try {
+      if (restartIfBeginning) {
+        const currentTime = await player.getCurrentTime();
+        if (currentTime > 1.5) {
+          await player.setCurrentTime(0);
         }
-      })
-      .catch(() => {
-        // Fallback remains 16 / 9
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
+      }
+      await player.setMuted(false);
+      await player.setVolume(1);
+      await player.play();
+      setBrowserForcedMute(false);
+    } catch {
+      // Browser still requires direct gesture on the page
+    }
+  };
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (!event.origin.includes('vimeo.com')) return;
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const player = new Player(iframe);
+    playerRef.current = player;
+
+    let isMounted = true;
+
+    player.ready().then(async () => {
+      if (!isMounted) return;
+      setIsLoaded(true);
+
       try {
-        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (data?.event === 'ready') {
-          setIsLoaded(true);
-          forcePlayWithSound();
+        // Attempt immediate unmuted autoplay with full volume
+        await player.setMuted(false);
+        await player.setVolume(1);
+        await player.play();
+
+        const mutedState = await player.getMuted();
+        const volumeState = await player.getVolume();
+        if (mutedState || volumeState === 0) {
+          setBrowserForcedMute(true);
+        } else {
+          setBrowserForcedMute(false);
         }
       } catch {
-        // Ignore non-JSON messages
+        // If the browser blocks unmuted autoplay on cold load, start playing and unlock sound on first touch anywhere
+        if (!isMounted) return;
+        setBrowserForcedMute(true);
+        try {
+          await player.setMuted(true);
+          await player.play();
+        } catch {
+          // Ignore fallback error
+        }
       }
+    });
+
+    player.on('volumechange', (data: { volume: number; muted?: boolean }) => {
+      if (!isMounted) return;
+      if (data.volume > 0 && !data.muted) {
+        setBrowserForcedMute(false);
+      }
+    });
+
+    // Unlock audio automatically on the very first touch/click anywhere on the document
+    const handleFirstUserGesture = () => {
+      activateAudioAndPlay(false);
     };
 
-    window.addEventListener('message', handleMessage);
-
-    // Ensure full audio playback starts immediately and also unlocks on any first micro-interaction if browser policy intervenes
-    const unlockAudioOnInteraction = () => {
-      forcePlayWithSound();
-    };
-
-    window.addEventListener('pointerdown', unlockAudioOnInteraction, { once: true, passive: true });
-    window.addEventListener('touchstart', unlockAudioOnInteraction, { once: true, passive: true });
-    window.addEventListener('keydown', unlockAudioOnInteraction, { once: true, passive: true });
-    window.addEventListener('scroll', unlockAudioOnInteraction, { once: true, passive: true });
+    document.addEventListener('pointerdown', handleFirstUserGesture, {
+      capture: true,
+      once: true,
+      passive: true,
+    });
+    document.addEventListener('touchstart', handleFirstUserGesture, {
+      capture: true,
+      once: true,
+      passive: true,
+    });
+    document.addEventListener('keydown', handleFirstUserGesture, {
+      capture: true,
+      once: true,
+      passive: true,
+    });
 
     return () => {
-      window.removeEventListener('message', handleMessage);
-      window.removeEventListener('pointerdown', unlockAudioOnInteraction);
-      window.removeEventListener('touchstart', unlockAudioOnInteraction);
-      window.removeEventListener('keydown', unlockAudioOnInteraction);
-      window.removeEventListener('scroll', unlockAudioOnInteraction);
+      isMounted = false;
+      document.removeEventListener('pointerdown', handleFirstUserGesture, { capture: true });
+      document.removeEventListener('touchstart', handleFirstUserGesture, { capture: true });
+      document.removeEventListener('keydown', handleFirstUserGesture, { capture: true });
+      player. unload().catch(() => {});
     };
   }, []);
 
   return (
-    <div className="relative mx-auto w-full max-w-5xl">
+    <div className="relative mx-auto w-full max-w-[380px] sm:max-w-[420px]">
       {/* Subtle Ambient Illumination Behind Video */}
       <div
         className="pointer-events-none absolute -inset-6 rounded-3xl opacity-35 blur-3xl"
@@ -86,10 +117,10 @@ export const VimeoHeroPlayer: React.FC = () => {
         aria-hidden="true"
       />
 
-      {/* Clean, Seamless Responsive Video Container */}
+      {/* Clean, Seamless Responsive Video Container Matching Native 240:426 (9:16) Aspect Ratio */}
       <div
-        className="relative mx-auto w-full overflow-hidden rounded-xl sm:rounded-2xl bg-[#07070B] shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] ring-1 ring-white/[0.08]"
-        style={{ aspectRatio }}
+        className="relative mx-auto w-full overflow-hidden rounded-2xl bg-[#07070B] shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] ring-1 ring-white/[0.08]"
+        style={{ aspectRatio: '240 / 426' }}
       >
         {!isLoaded && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#07070B]">
@@ -99,16 +130,28 @@ export const VimeoHeroPlayer: React.FC = () => {
 
         <iframe
           ref={iframeRef}
-          src={`https://player.vimeo.com/video/${VIMEO_VIDEO_ID}?autoplay=1&muted=0&loop=0&autopause=0&playsinline=1&title=0&byline=0&portrait=0&badge=0&dnt=1&api=1&controls=1`}
+          src={`https://player.vimeo.com/video/${VIMEO_VIDEO_ID}?autoplay=1&muted=0&loop=0&autopause=0&playsinline=1&title=0&byline=0&portrait=0&badge=0&dnt=1&controls=1`}
           title="LevelCode — Vídeo Principal"
           className="absolute inset-0 h-full w-full border-0"
-          allow="autoplay; fullscreen; picture-in-picture; encrypted-media; speaker-selection"
+          allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share; speaker-selection"
           allowFullScreen
-          onLoad={() => {
-            setIsLoaded(true);
-            forcePlayWithSound();
-          }}
+          onLoad={() => setIsLoaded(true)}
         />
+
+        {/* Transparent Full-Video Catch Layer ONLY if Browser Blocked Initial Unmuted Autoplay */}
+        {browserForcedMute && (
+          <button
+            type="button"
+            onClick={() => activateAudioAndPlay(true)}
+            aria-label="Ouvir vídeo com som"
+            className="absolute inset-x-0 top-0 bottom-14 z-20 flex items-start justify-center pt-4 bg-transparent cursor-pointer"
+          >
+            <span className="inline-flex items-center gap-2 rounded-full bg-purple-600/95 px-4 py-2 text-xs font-medium text-white shadow-[0_0_25px_rgba(168,85,247,0.7)] ring-1 ring-purple-300/60 backdrop-blur-md">
+              <Volume2 className="h-3.5 w-3.5 animate-pulse" />
+              <span>Toque na tela para ouvir o áudio</span>
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );
