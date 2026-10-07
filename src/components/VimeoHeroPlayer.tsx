@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Volume2 } from 'lucide-react';
+
+const VIMEO_VIDEO_ID = '1233741589';
 
 export const VimeoHeroPlayer: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const [isMuted, setIsMuted] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<string>('16 / 9');
 
@@ -14,10 +14,16 @@ export const VimeoHeroPlayer: React.FC = () => {
     iframe.contentWindow.postMessage(JSON.stringify(message), '*');
   };
 
+  const forcePlayWithSound = () => {
+    sendVimeoCommand('setMuted', false);
+    sendVimeoCommand('setVolume', 1);
+    sendVimeoCommand('play');
+  };
+
   useEffect(() => {
-    // Query Vimeo oEmbed API to respect exact native aspect ratio of video 1233661385
+    // Query Vimeo oEmbed API to respect exact native aspect ratio of video 1233741589
     let active = true;
-    fetch('https://vimeo.com/api/oembed.json?url=https://vimeo.com/1233661385')
+    fetch(`https://vimeo.com/api/oembed.json?url=https://vimeo.com/${VIMEO_VIDEO_ID}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (active && data?.width && data?.height) {
@@ -40,11 +46,7 @@ export const VimeoHeroPlayer: React.FC = () => {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (data?.event === 'ready') {
           setIsLoaded(true);
-          sendVimeoCommand('addEventListener', 'volumechange');
-          sendVimeoCommand('play');
-        }
-        if (data?.event === 'volumechange' && typeof data?.data?.volume === 'number') {
-          setIsMuted(data.data.volume === 0);
+          forcePlayWithSound();
         }
       } catch {
         // Ignore non-JSON messages
@@ -52,19 +54,29 @@ export const VimeoHeroPlayer: React.FC = () => {
     };
 
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
 
-  const handleActivateSound = () => {
-    sendVimeoCommand('setMuted', false);
-    sendVimeoCommand('setVolume', 1);
-    sendVimeoCommand('play');
-    setIsMuted(false);
-  };
+    // Ensure full audio playback starts immediately and also unlocks on any first micro-interaction if browser policy intervenes
+    const unlockAudioOnInteraction = () => {
+      forcePlayWithSound();
+    };
+
+    window.addEventListener('pointerdown', unlockAudioOnInteraction, { once: true, passive: true });
+    window.addEventListener('touchstart', unlockAudioOnInteraction, { once: true, passive: true });
+    window.addEventListener('keydown', unlockAudioOnInteraction, { once: true, passive: true });
+    window.addEventListener('scroll', unlockAudioOnInteraction, { once: true, passive: true });
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('pointerdown', unlockAudioOnInteraction);
+      window.removeEventListener('touchstart', unlockAudioOnInteraction);
+      window.removeEventListener('keydown', unlockAudioOnInteraction);
+      window.removeEventListener('scroll', unlockAudioOnInteraction);
+    };
+  }, []);
 
   return (
     <div className="relative mx-auto w-full max-w-5xl">
-      {/* Subtle Ambient Illumination Behind Video (No Heavy Card or Fake Frame) */}
+      {/* Subtle Ambient Illumination Behind Video */}
       <div
         className="pointer-events-none absolute -inset-6 rounded-3xl opacity-35 blur-3xl"
         style={{
@@ -87,27 +99,16 @@ export const VimeoHeroPlayer: React.FC = () => {
 
         <iframe
           ref={iframeRef}
-          src="https://player.vimeo.com/video/1233661385?autoplay=1&muted=1&loop=0&autopause=0&playsinline=1&title=0&byline=0&portrait=0&badge=0&dnt=1&api=1&controls=1"
+          src={`https://player.vimeo.com/video/${VIMEO_VIDEO_ID}?autoplay=1&muted=0&loop=0&autopause=0&playsinline=1&title=0&byline=0&portrait=0&badge=0&dnt=1&api=1&controls=1`}
           title="LevelCode — Vídeo Principal"
           className="absolute inset-0 h-full w-full border-0"
-          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media; speaker-selection"
           allowFullScreen
-          onLoad={() => setIsLoaded(true)}
+          onLoad={() => {
+            setIsLoaded(true);
+            forcePlayWithSound();
+          }}
         />
-
-        {/* Discreet Unmute Trigger When Browser Starts Autoplay Muted */}
-        {isMuted && (
-          <div className="pointer-events-none absolute inset-x-0 top-4 sm:top-5 flex justify-center px-4">
-            <button
-              type="button"
-              onClick={handleActivateSound}
-              className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-black/75 px-4 py-2 text-xs font-medium text-white shadow-lg ring-1 ring-white/20 backdrop-blur-md transition-all duration-200 hover:bg-purple-600/90 hover:ring-purple-400 cursor-pointer whitespace-nowrap"
-            >
-              <Volume2 className="h-3.5 w-3.5 text-purple-300" />
-              <span>Ativar som do vídeo</span>
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

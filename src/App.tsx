@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, ArrowUpRight, ChevronDown, ShieldCheck } from 'lucide-react';
 import { ParticleBackground } from './components/ParticleBackground';
+import { VimeoHeroPlayer } from './components/VimeoHeroPlayer';
 import { ProjectCard, REAL_PROJECTS } from './components/ProjectMockups';
 import { LEARNING_MODULES } from './components/LearningIcons3D';
 import { BONUS_CHECKLIST, BonusChecklistItem } from './components/ProcessPipeline3D';
@@ -148,46 +149,9 @@ export default function App() {
             </p>
           </div>
 
-          {/* Hero Value Statement Block (Replacing Video) */}
-          <div className="relative mx-auto mt-10 sm:mt-12 w-full max-w-4xl">
-            <div
-              className="pointer-events-none absolute -inset-6 rounded-3xl opacity-30 blur-3xl"
-              style={{
-                background:
-                  'radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.35), rgba(79, 70, 229, 0.12) 65%, transparent 100%)',
-              }}
-              aria-hidden="true"
-            />
-
-            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0C0B14] to-[#08080D] p-7 sm:p-10 md:p-12 text-center ring-1 ring-white/[0.09] shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)]">
-              <p
-                className="font-display text-lg sm:text-2xl md:text-[26px] font-medium text-white leading-snug"
-                style={{ textWrap: 'balance' }}
-              >
-                Já imaginou criar seus próprios sistemas e transformar esse conhecimento em uma{' '}
-                <span className="bg-gradient-to-r from-purple-300 via-violet-300 to-indigo-300 bg-clip-text text-transparent font-semibold">
-                  nova fonte de renda?
-                </span>
-              </p>
-
-              <p
-                className="mx-auto mt-5 max-w-2xl text-sm sm:text-base md:text-lg font-normal text-slate-300 leading-relaxed"
-                style={{ textWrap: 'balance' }}
-              >
-                Mesmo começando do zero, eu vou te ensinar a criar sistemas de gestão, agendamentos,
-                biossistemas e biosites que você poderá oferecer para seus próprios clientes.
-              </p>
-
-              <div className="mx-auto my-6 h-px w-24 bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
-
-              <p className="font-display text-base sm:text-lg md:text-xl font-medium text-purple-200">
-                Pare de só consumir tecnologia. Aprenda a criar, vender e lucrar com ela.
-              </p>
-
-              <p className="mt-2 text-xs sm:text-sm font-mono tracking-wider text-slate-400 uppercase">
-                Entre agora e evolua para o seu próximo nível!
-              </p>
-            </div>
+          {/* Large, Proportional, Seamlessly Integrated Main Video */}
+          <div className="mt-10 sm:mt-12 w-full">
+            <VimeoHeroPlayer />
           </div>
 
           {/* Primary Action Below Video */}
