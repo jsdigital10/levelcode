@@ -1,0 +1,6 @@
+{
+  "name": "LevelCode | Do Zero ao Seu Próprio Sistema",
+  "description": "Aprenda de forma prática e descomplicada a criar sistemas web, ferramentas de gestão e biosites profissionais e colocar seus projetos online.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
